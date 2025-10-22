@@ -22,6 +22,8 @@ This repository contains AI-powered GitHub Actions using Claude AI from Anthropi
    - The actions use the default `GITHUB_TOKEN`
    - No additional permissions needed
 
+> Note: This line is a no-op documentation tweak to trigger CI for testing.
+
 ## Features
 
 ### PR Review Bot (`.github/workflows/pr-review.yml`)
