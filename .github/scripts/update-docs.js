@@ -47,11 +47,11 @@ async function analyzeChangesAndUpdateDocs() {
   const changedFiles = await getChangedFiles();
 
   if (changedFiles.length === 0) {
-    console.log('No code changes detected.');
+    console.log('No code changes detected. Skipping documentation update step.');
     return;
   }
 
-  console.log('Changed files:', changedFiles);
+  console.log(`Changed files (${changedFiles.length}):`, changedFiles);
 
   // Get diffs for changed files
   const changes = [];
