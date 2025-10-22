@@ -27,9 +27,10 @@ This repository contains AI-powered GitHub Actions using Claude AI from Anthropi
 ### PR Review Bot (`.github/workflows/pr-review.yml`)
 
 When a PR is opened or updated:
-1. Fetches the PR diff
-2. Sends it to Claude for analysis
-3. Posts review as a comment on the PR
+1. **Waits for documentation updates** - The review bot now waits for the "Update Documentation" workflow to complete before starting the review process
+2. Fetches the PR diff
+3. Sends it to Claude for analysis
+4. Posts review as a comment on the PR
 
 The review includes:
 - Code quality feedback
@@ -38,7 +39,11 @@ The review includes:
 - Security concerns
 - Performance recommendations
 
-**Customization**: Edit `.github/scripts/review-pr.js` to adjust review criteria.
+**Workflow Coordination**: The PR review process includes built-in coordination with the documentation updater to ensure reviews happen after documentation is updated. This prevents race conditions and ensures reviewers see the complete picture including any auto-generated documentation changes.
+
+**Error Handling**: The review bot includes robust error handling for workflow coordination, including timeout handling (10 minutes default) and graceful degradation if the documentation workflow cannot be found or times out.
+
+**Customization**: Edit `.github/scripts/review-pr.js` to adjust review criteria, workflow coordination timeouts, or polling intervals.
 
 ### Documentation Updater (`.github/workflows/update-docs.yml`)
 
@@ -56,4 +61,21 @@ The updater handles:
 - Usage examples for new functionality
 - Setup/installation instruction changes
 
+**Improved Logging**: The documentation updater now provides more detailed logging about the number of changed files and skips processing when no changes are detected, improving workflow efficiency and debugging.
+
 **Customization**: Edit `.github/scripts/update-docs.js` to adjust documentation scope or format.
+
+## Workflow Coordination
+
+The system includes intelligent workflow coordination:
+
+- **Sequential Processing**: The PR review bot waits for documentation updates to complete before performing its analysis
+- **Timeout Handling**: Built-in 10-minute timeout for workflow coordination with configurable polling intervals
+- **Graceful Degradation**: If documentation workflow completion cannot be determined, the review proceeds anyway
+- **Enhanced Error Handling**: Improved error handling and logging for better debugging and monitoring
+
+This ensures that:
+1. Documentation is always updated first based on code changes
+2. PR reviews include analysis of both code and documentation changes
+3. No race conditions occur between the two automated processes
+4. The system remains robust even when individual workflows encounter issues

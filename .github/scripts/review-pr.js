@@ -38,6 +38,39 @@ async function githubApiRequest(path, method = 'GET', body = null, customHeaders
   });
 }
 
+async function waitForWorkflowCompletion(workflowName, headSha, timeoutMs = 10 * 60 * 1000, pollMs = 10000) {
+  const { REPO_OWNER, REPO_NAME } = process.env;
+  const deadline = Date.now() + timeoutMs;
+
+  console.log(`Waiting for workflow "${workflowName}" on ${headSha} to complete...`);
+
+  while (Date.now() < deadline) {
+    try {
+      const runs = await githubApiRequest(`/repos/${REPO_OWNER}/${REPO_NAME}/actions/runs?head_sha=${headSha}`);
+      if (runs && runs.workflow_runs && Array.isArray(runs.workflow_runs)) {
+        const run = runs.workflow_runs.find(r => r.name === workflowName);
+        if (run) {
+          console.log(`Found workflow run: status=${run.status}, conclusion=${run.conclusion}`);
+          if (run.status === 'completed') {
+            return run.conclusion || 'completed';
+          }
+        } else {
+          console.log('Workflow run not found yet for this SHA.');
+        }
+      } else {
+        console.log('Unexpected response while listing workflow runs.');
+      }
+    } catch (e) {
+      console.log(`Error while polling workflow runs: ${e.message}`);
+    }
+
+    await new Promise(r => setTimeout(r, pollMs));
+  }
+
+  console.log('Timed out waiting for workflow completion. Proceeding anyway.');
+  return 'timeout';
+}
+
 async function getPRDiff() {
   const { PR_NUMBER, REPO_OWNER, REPO_NAME } = process.env;
   
@@ -63,7 +96,7 @@ async function getPRDiff() {
       'Accept': 'application/vnd.github.v3.diff'
     });
     
-    console.log(`Diff length: ${diff ? diff.length : 0} characters`);
+    console.log(`Diff length: ${diff && typeof diff === 'string' ? diff.length : (diff ? 'n/a' : 0)} characters`);
     console.log(`Diff type: ${typeof diff}`);
     
     if (diff && typeof diff === 'string') {
@@ -79,16 +112,24 @@ async function getPRDiff() {
 
 async function reviewPR() {
   try {
+    // Ensure docs workflow has completed for this PR's head SHA before reviewing
+    const pr = await githubApiRequest(`/repos/${process.env.REPO_OWNER}/${process.env.REPO_NAME}/pulls/${process.env.PR_NUMBER}`);
+    const headSha = pr && pr.head && pr.head.sha ? pr.head.sha : undefined;
+    if (headSha) {
+      await waitForWorkflowCompletion('Update Documentation', headSha);
+    } else {
+      console.log('Could not determine head SHA; skipping workflow wait.');
+    }
+
     console.log('Fetching PR diff...');
     const diff = await getPRDiff();
 
-    if (!diff || diff.trim().length === 0) {
+    if (!diff || (typeof diff !== 'string' ? false : diff.trim().length === 0)) {
       console.log('No changes found in PR - this might be a merge commit or the PR has no file changes');
       console.log('Posting informational comment...');
       
-      const { PR_NUMBER, REPO_OWNER, REPO_NAME } = process.env;
       await githubApiRequest(
-        `/repos/${REPO_OWNER}/${REPO_NAME}/issues/${PR_NUMBER}/comments`,
+        `/repos/${process.env.REPO_OWNER}/${process.env.REPO_NAME}/issues/${process.env.PR_NUMBER}/comments`,
         'POST',
         { body: '## 🤖 AI Code Review\n\nNo file changes detected in this PR. This might be a merge commit or the PR contains only metadata changes.' }
       );
@@ -113,7 +154,7 @@ async function reviewPR() {
 Here's the diff:
 
 \`\`\`diff
-${diff}
+${typeof diff === 'string' ? diff : JSON.stringify(diff, null, 2)}
 \`\`\`
 
 Provide a concise review with specific suggestions. Format your response in markdown.`
@@ -123,9 +164,8 @@ Provide a concise review with specific suggestions. Format your response in mark
     const review = message.content[0].text;
 
     console.log('Posting review comment...');
-    const { PR_NUMBER, REPO_OWNER, REPO_NAME } = process.env;
     await githubApiRequest(
-      `/repos/${REPO_OWNER}/${REPO_NAME}/issues/${PR_NUMBER}/comments`,
+      `/repos/${process.env.REPO_OWNER}/${process.env.REPO_NAME}/issues/${process.env.PR_NUMBER}/comments`,
       'POST',
       { body: `## 🤖 AI Code Review\n\n${review}` }
     );
