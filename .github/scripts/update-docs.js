@@ -1,6 +1,7 @@
 const Anthropic = require('@anthropic-ai/sdk');
 const fs = require('fs');
 const path = require('path');
+const https = require('https');
 const { execSync } = require('child_process');
 
 const anthropic = new Anthropic({
@@ -44,6 +45,49 @@ async function readExistingDocs() {
 }
 
 async function analyzeChangesAndUpdateDocs() {
+  // Allow skipping docs update via PR label "docs:skip"
+  try {
+    const prNumber = process.env.PR_NUMBER;
+    const owner = process.env.REPO_OWNER;
+    const repo = process.env.REPO_NAME;
+    if (prNumber && owner && repo && process.env.GITHUB_TOKEN) {
+      const options = {
+        hostname: 'api.github.com',
+        path: `/repos/${owner}/${repo}/issues/${prNumber}/labels`,
+        method: 'GET',
+        headers: {
+          'Authorization': `token ${process.env.GITHUB_TOKEN}`,
+          'User-Agent': 'docs-updater-bot',
+          'Accept': 'application/vnd.github.v3+json'
+        }
+      };
+      const labels = await new Promise((resolve, reject) => {
+        const req = https.request(options, (res) => {
+          let data = '';
+          res.on('data', (chunk) => data += chunk);
+          res.on('end', () => {
+            try {
+              resolve(JSON.parse(data));
+            } catch (_) {
+              resolve([]);
+            }
+          });
+        });
+        req.on('error', reject);
+        req.end();
+      });
+      if (Array.isArray(labels)) {
+        const hasSkip = labels.some(l => (l && (l.name || '').toLowerCase()) === 'docs:skip');
+        if (hasSkip) {
+          console.log('docs:skip label detected on PR. Skipping documentation update.');
+          return;
+        }
+      }
+    }
+  } catch (e) {
+    console.log('Error checking PR labels; proceeding with docs update:', e.message);
+  }
+
   const changedFiles = await getChangedFiles();
 
   if (changedFiles.length === 0) {

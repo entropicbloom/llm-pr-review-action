@@ -61,6 +61,11 @@ The updater handles:
 - Usage examples for new functionality
 - Setup/installation instruction changes
 
+**Skip Documentation Updates**: You can skip automatic documentation updates by adding the `docs:skip` label to your pull request. This is useful for:
+- Minor code changes that don't affect documentation
+- Work-in-progress PRs where documentation will be updated separately
+- Changes to non-functional code (tests, build scripts, etc.)
+
 **Improved Logging**: The documentation updater now provides more detailed logging about the number of changed files and skips processing when no changes are detected, improving workflow efficiency and debugging.
 
 **Customization**: Edit `.github/scripts/update-docs.js` to adjust documentation scope or format.
@@ -73,9 +78,29 @@ The system includes intelligent workflow coordination:
 - **Timeout Handling**: Built-in 10-minute timeout for workflow coordination with configurable polling intervals
 - **Graceful Degradation**: If documentation workflow completion cannot be determined, the review proceeds anyway
 - **Enhanced Error Handling**: Improved error handling and logging for better debugging and monitoring
+- **Skip Mechanism**: Documentation updates can be skipped entirely using the `docs:skip` PR label
 
 This ensures that:
-1. Documentation is always updated first based on code changes
+1. Documentation is always updated first based on code changes (unless explicitly skipped)
 2. PR reviews include analysis of both code and documentation changes
 3. No race conditions occur between the two automated processes
 4. The system remains robust even when individual workflows encounter issues
+5. Developers have control over when documentation updates are needed
+
+## Usage Tips
+
+### Skipping Documentation Updates
+
+To skip automatic documentation updates on a pull request:
+
+1. Go to your pull request page
+2. In the sidebar, find the "Labels" section
+3. Add the label `docs:skip`
+4. The documentation updater will detect this label and skip processing
+
+**When to use `docs:skip`:**
+- Bug fixes that don't change functionality
+- Internal refactoring without API changes
+- Test-only changes
+- Build or CI configuration updates
+- Dependency updates without feature changes
